@@ -95,7 +95,7 @@
       </h2>
       <p class="text-gray-500 mb-8 max-w-xl mx-auto">Client-side processing powered by your browser. Free, fast, and high quality.</p>
 
-      <div class="max-w-5xl mx-auto bg-white rounded-2xl shadow-lg p-4 border border-emerald-100">
+      <div class="max-w-5xl mx-auto bg-white rounded-2xl shadow-lg p-4 border border-emerald-100 relative z-10">
         
         <div id="uploadArea" class="group relative flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50/50 hover:bg-blue-50/50 hover:border-gemini-blue transition-all cursor-pointer">
           <div class="flex flex-col items-center justify-center pt-5 pb-6">
@@ -164,7 +164,66 @@
           </div>
         </div>
       </div>
-    </section>
+
+      <div class="max-w-5xl mx-auto mt-16 text-left">
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+          <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center mb-4 text-2xl">✨</div>
+            <h3 class="font-bold text-gray-900 mb-2">100% Lossless</h3>
+            <p class="text-sm text-gray-600 leading-relaxed">
+              The quality stays 100% perfect. No compression, no artifacts. It restores the original pixels mathematically.
+            </p>
+          </div>
+
+          <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-4 text-2xl">🔒</div>
+            <h3 class="font-bold text-gray-900 mb-2">Privacy First</h3>
+            <p class="text-sm text-gray-600 leading-relaxed">
+              It works <strong>100% inside your browser</strong> (Client-Side). Your photos are never uploaded to any server.
+            </p>
+          </div>
+
+          <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center mb-4 text-2xl">💻</div>
+            <h3 class="font-bold text-gray-900 mb-2">Open Source</h3>
+            <p class="text-sm text-gray-600 leading-relaxed">
+              Completely free and open source. Developers can inspect the code on <a href="https://github.com/dearabhin/gemini-watermark-remover" class="text-gemini-blue hover:underline">GitHub</a>.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <div class="bg-blue-50/50 border border-blue-100 rounded-2xl p-6">
+            <h4 class="flex items-center gap-2 font-bold text-blue-900 mb-3">
+              <span>ℹ️</span> A Quick Note
+            </h4>
+            <p class="text-sm text-blue-800/80 leading-relaxed">
+              This tool removes only the <strong>visible Gemini logo</strong> for aesthetic purposes (like presentations or mockups). It does <span class="underline">not</span> remove the invisible "SynthID" watermark that Google embeds for safety.
+            </p>
+          </div>
+
+          <div class="bg-amber-50/50 border border-amber-100 rounded-2xl p-6">
+            <h4 class="flex items-center gap-2 font-bold text-amber-900 mb-3">
+              <span>⚠️</span> One Important Rule
+            </h4>
+            <p class="text-sm text-amber-800 mb-3">
+              For the math to work, you must use the <strong>actual downloaded image file</strong> from Gemini.
+            </p>
+            <ul class="space-y-2 text-sm text-amber-800/90 font-medium">
+              <li class="flex items-center gap-2"><span class="text-red-500 text-lg">×</span> Don't right-click "Save As"</li>
+              <li class="flex items-center gap-2"><span class="text-red-500 text-lg">×</span> Don't use screenshots</li>
+              <li class="flex items-center gap-2"><span class="text-emerald-600 text-lg">✓</span> Use the <strong>Download</strong> button in Gemini</li>
+            </ul>
+            <p class="text-xs text-amber-600/70 mt-3 italic">
+              (Screenshots & previews compress pixels, which breaks the math!)
+            </p>
+          </div>
+
+        </div>
+      </div>
+      </section>
   </main>
 
   <footer class="bg-white border-t border-gray-100 mt-auto">
