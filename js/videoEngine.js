@@ -7,9 +7,11 @@ export class VideoWatermarkEngine {
         this.bg96 = bg96;
         this.alphaMaps = {};
         // Configuration constants
-        this.DEFAULT_VIDEO_BITRATE = 5000000; // 5 Mbps
-        this.FRAME_CAPTURE_BUFFER_MS = 100; // Buffer to ensure all frames are captured
-        this.RECORDING_FPS = 30; // Output video frame rate
+        this.DEFAULT_VIDEO_BITRATE = 15000000; // 15 Mbps for better quality
+        this.FRAME_CAPTURE_BUFFER_MS = 200; // Increased buffer to ensure all frames are captured
+        this.DEFAULT_RECORDING_FPS = 30; // Default output video frame rate if detection fails
+        this.FINAL_FRAME_DELAY_MS = 100; // Additional delay before stopping to ensure last frame is recorded
+        this.FRAME_TOLERANCE_MS = 1; // Tolerance for frame interval matching
     }
 
     static async create() {
@@ -33,7 +35,9 @@ export class VideoWatermarkEngine {
     }
 
     getWatermarkInfo(width, height) {
-        const isLarge = width > 1024 && height > 1024;
+        // Use larger watermark if either dimension is greater than 1024
+        // This handles ultrawide, portrait, and standard high-resolution videos
+        const isLarge = width > 1024 || height > 1024;
         const size = isLarge ? 96 : 48;
         const margin = isLarge ? 64 : 32;
         
@@ -59,27 +63,74 @@ export class VideoWatermarkEngine {
         return map;
     }
 
+    /**
+     * Calculate optimal bitrate based on video resolution
+     * Higher resolution videos need higher bitrates to maintain quality
+     */
+    calculateBitrate(width, height) {
+        const pixels = width * height;
+        // Base calculation: ~0.1 bits per pixel per frame at 30fps
+        // This ensures quality scales with resolution
+        let bitrate;
+        
+        if (pixels <= 921600) { // 720p (1280x720) or lower
+            bitrate = 8000000; // 8 Mbps
+        } else if (pixels <= 2073600) { // 1080p (1920x1080)
+            bitrate = 15000000; // 15 Mbps
+        } else if (pixels <= 8294400) { // 4K (3840x2160)
+            bitrate = 40000000; // 40 Mbps
+        } else {
+            bitrate = 60000000; // 60 Mbps for higher resolutions
+        }
+        
+        return bitrate;
+    }
+
+    /**
+     * Get the target frame rate for video processing
+     * Currently returns a fixed FPS as browser APIs for frame rate detection
+     * are limited and unreliable. Future enhancement could use
+     * video.requestVideoFrameCallback() when widely supported.
+     */
+    getTargetFrameRate() {
+        // Default to 30 FPS which works well for most videos
+        return this.DEFAULT_RECORDING_FPS;
+    }
+
     async processVideo(videoFile, onProgress) {
         const video = document.createElement('video');
         const videoUrl = URL.createObjectURL(videoFile);
         video.src = videoUrl;
         video.muted = true;
+        video.preload = 'metadata';
         
         try {
-            await new Promise((res) => {
+            await new Promise((res, rej) => {
                 video.onloadedmetadata = res;
+                video.onerror = (event) => rej(new Error(`Failed to load video: ${event.type}`));
             });
 
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
+            // Use synchronous canvas drawing for consistency
+            // This ensures frames are drawn in order without timing issues
+            const ctx = canvas.getContext('2d', { 
+                alpha: false,
+                desynchronized: false
+            });
 
             const config = this.getWatermarkInfo(canvas.width, canvas.height);
             const alphaMap = await this.getAlphaMap(config.size);
 
-            // Create a MediaStream from canvas at specified FPS
-            const stream = canvas.captureStream(this.RECORDING_FPS);
+            // Calculate optimal bitrate and FPS based on video properties
+            const bitrate = this.calculateBitrate(canvas.width, canvas.height);
+            const fps = this.getTargetFrameRate();
+            
+            console.log(`Processing video: ${canvas.width}x${canvas.height}, FPS: ${fps}, Bitrate: ${bitrate}`);
+
+            // Create a MediaStream from canvas at detected/optimal FPS
+            const stream = canvas.captureStream(fps);
             
             // Get the original audio track if available
             let audioContext = null;
@@ -97,16 +148,21 @@ export class VideoWatermarkEngine {
                     audioDestination.stream.getAudioTracks().forEach(track => {
                         stream.addTrack(track);
                     });
+                    console.log('Audio track preserved from original video');
+                } else {
+                    console.log('No audio track found in original video');
                 }
             } catch (e) {
-                console.log('No audio track available or error capturing audio:', e);
+                console.warn('Could not preserve audio:', e);
             }
 
             return new Promise((resolve, reject) => {
-                // Create MediaRecorder with fallback codec support
+                // Create MediaRecorder with fallback codec support and optimal settings
                 let mediaRecorder;
                 const mimeTypes = [
+                    'video/webm;codecs=vp9,opus',
                     'video/webm;codecs=vp9',
+                    'video/webm;codecs=vp8,opus',
                     'video/webm;codecs=vp8',
                     'video/webm'
                 ];
@@ -115,13 +171,14 @@ export class VideoWatermarkEngine {
                 for (const mimeType of mimeTypes) {
                     if (MediaRecorder.isTypeSupported(mimeType)) {
                         selectedMimeType = mimeType;
+                        console.log(`Using codec: ${mimeType}`);
                         break;
                     }
                 }
                 
                 mediaRecorder = new MediaRecorder(stream, {
                     mimeType: selectedMimeType,
-                    videoBitsPerSecond: this.DEFAULT_VIDEO_BITRATE
+                    videoBitsPerSecond: bitrate
                 });
 
                 const chunks = [];
@@ -156,46 +213,68 @@ export class VideoWatermarkEngine {
                 // Start recording
                 mediaRecorder.start();
 
-                // Process frames
-                video.play();
-                
-                // Process each frame as it's drawn to the canvas
-                // Frames are processed at browser refresh rate (~60fps) using requestAnimationFrame
-                // but the MediaRecorder captures and encodes them at the configured RECORDING_FPS
-                let recordingStopped = false;
-                
-                const processFrame = () => {
-                    if (video.ended || video.paused) {
-                        // Don't stop here - let onended handler manage the stop with buffer time
-                        return;
-                    }
-
-                    ctx.drawImage(video, 0, 0);
+                // Helper function to process a single frame
+                const processCurrentFrame = () => {
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                     removeWatermark(imageData, alphaMap, config);
                     ctx.putImageData(imageData, 0, 0);
+                };
 
-                    // Report progress
-                    if (onProgress) {
-                        const progress = (video.currentTime / video.duration) * 100;
-                        onProgress(progress);
+                // Process frames with better synchronization
+                video.play();
+                
+                let lastFrameTime = 0;
+                const frameInterval = 1000 / fps; // Target interval between frames in ms
+                let recordingStopped = false;
+                
+                const processFrame = (currentTime) => {
+                    if (video.ended || video.paused || recordingStopped) {
+                        return;
+                    }
+
+                    // Throttle frame processing to match target FPS
+                    // This helps prevent processing the same frame multiple times
+                    const elapsed = currentTime - lastFrameTime;
+                    
+                    // Process frame if enough time has elapsed
+                    // Small tolerance ensures we don't skip frames due to timing variations
+                    if (elapsed >= frameInterval - this.FRAME_TOLERANCE_MS) {
+                        lastFrameTime = currentTime;
+                        processCurrentFrame();
+
+                        // Report progress
+                        if (onProgress && video.duration > 0) {
+                            const progress = Math.min((video.currentTime / video.duration) * 100, 100);
+                            onProgress(progress);
+                        }
                     }
 
                     requestAnimationFrame(processFrame);
                 };
 
                 video.onended = () => {
-                    // Give a small buffer to ensure all frames are captured
+                    // Give a buffer to ensure all frames are captured
                     // This prevents race conditions where the recorder stops before the last frame
                     setTimeout(() => {
                         if (!recordingStopped && mediaRecorder.state !== 'inactive') {
                             recordingStopped = true;
-                            mediaRecorder.stop();
+                            
+                            // Process the last frame one more time to ensure it's captured
+                            processCurrentFrame();
+                            
+                            // Small additional delay before stopping to ensure last frame is recorded
+                            setTimeout(() => {
+                                if (mediaRecorder.state !== 'inactive') {
+                                    mediaRecorder.stop();
+                                }
+                            }, this.FINAL_FRAME_DELAY_MS);
                         }
                     }, this.FRAME_CAPTURE_BUFFER_MS);
                 };
 
-                processFrame();
+                // Start frame processing
+                requestAnimationFrame(processFrame);
             });
         } catch (error) {
             // Clean up resources on error
