@@ -33,7 +33,9 @@ export class VideoWatermarkEngine {
     }
 
     getWatermarkInfo(width, height) {
-        const isLarge = width > 1024 && height > 1024;
+        // Use larger watermark if either dimension is greater than 1024
+        // This handles ultrawide, portrait, and standard high-resolution videos
+        const isLarge = width > 1024 || height > 1024;
         const size = isLarge ? 96 : 48;
         const margin = isLarge ? 64 : 32;
         
