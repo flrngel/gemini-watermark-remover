@@ -148,9 +148,12 @@ export class VideoWatermarkEngine {
                     audioDestination.stream.getAudioTracks().forEach(track => {
                         stream.addTrack(track);
                     });
+                    console.log('Audio track preserved from original video');
+                } else {
+                    console.log('No audio track found in original video');
                 }
             } catch (e) {
-                console.log('No audio track available or error capturing audio:', e);
+                console.warn('Could not preserve audio:', e);
             }
 
             return new Promise((resolve, reject) => {
