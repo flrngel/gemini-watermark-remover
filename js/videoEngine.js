@@ -96,8 +96,24 @@ export class VideoWatermarkEngine {
                 console.log('No audio track available or error capturing audio:', e);
             }
 
-            const mediaRecorder = new MediaRecorder(stream, {
-                mimeType: 'video/webm;codecs=vp9',
+            // Create MediaRecorder with fallback codec support
+            let mediaRecorder;
+            const mimeTypes = [
+                'video/webm;codecs=vp9',
+                'video/webm;codecs=vp8',
+                'video/webm'
+            ];
+            
+            let selectedMimeType = 'video/webm';
+            for (const mimeType of mimeTypes) {
+                if (MediaRecorder.isTypeSupported(mimeType)) {
+                    selectedMimeType = mimeType;
+                    break;
+                }
+            }
+            
+            mediaRecorder = new MediaRecorder(stream, {
+                mimeType: selectedMimeType,
                 videoBitsPerSecond: 5000000
             });
 

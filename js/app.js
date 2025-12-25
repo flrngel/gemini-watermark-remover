@@ -98,6 +98,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (loadingText) {
             loadingText.textContent = isVideo ? 'Processing video...' : 'Processing image...';
         }
+        
+        // Reset progress bar
+        if (progressBar) {
+            progressBar.style.width = '0%';
+        }
 
         try {
             if (isVideo) {
@@ -107,7 +112,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         } catch (error) {
             console.error(error);
-            alert("An error occurred during processing.");
+            alert(`An error occurred during processing: ${error.message || error}`);
         } finally {
             loadingOverlay.classList.add('hidden');
             loadingOverlay.classList.remove('flex');

@@ -87,6 +87,11 @@ The video processing feature works by:
 
 **Note:** Video processing happens entirely in your browser with no server uploads. Processing time depends on video length and resolution.
 
+**Browser Compatibility:**
+* Works best in Chrome, Edge, and other Chromium-based browsers
+* Firefox and Safari may have limited codec support
+* For best results, use videos under 1 minute in length
+
 ## ⚡ Running Locally
 
 Since this project uses **ES6 Modules** (`import`/`export`), you cannot simply open `index.html` in a file explorer (CORS security rules will block the script loading). You must serve it via a local server.
@@ -107,6 +112,7 @@ python -m http.server 8000
 
 This tool is for **educational and personal use only**.
 * It only removes visible watermarks; it **does not** remove invisible SynthID watermarks embedded by Google.
+* Video output is in WebM format. For MP4 conversion, use external tools like FFmpeg.
 * Please respect Google's Terms of Service and Intellectual Property rights.
 
 ## 🤝 Credits
