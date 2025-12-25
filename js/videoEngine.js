@@ -107,7 +107,7 @@ export class VideoWatermarkEngine {
         try {
             await new Promise((res, rej) => {
                 video.onloadedmetadata = res;
-                video.onerror = rej;
+                video.onerror = (event) => rej(new Error(`Failed to load video: ${event.type}`));
             });
 
             const canvas = document.createElement('canvas');
