@@ -103,7 +103,6 @@ export class VideoWatermarkEngine {
             }
 
             return new Promise((resolve, reject) => {
-
             // Create MediaRecorder with fallback codec support
             let mediaRecorder;
             const mimeTypes = [
@@ -165,7 +164,7 @@ export class VideoWatermarkEngine {
             // but the MediaRecorder captures and encodes them at the configured RECORDING_FPS
             const processFrame = async () => {
                 if (video.ended || video.paused) {
-                    mediaRecorder.stop();
+                    // Don't stop here - let onended handler manage the stop with buffer time
                     return;
                 }
 
@@ -187,7 +186,9 @@ export class VideoWatermarkEngine {
                 // Give a small buffer to ensure all frames are captured
                 // This prevents race conditions where the recorder stops before the last frame
                 setTimeout(() => {
-                    mediaRecorder.stop();
+                    if (mediaRecorder.state !== 'inactive') {
+                        mediaRecorder.stop();
+                    }
                 }, this.FRAME_CAPTURE_BUFFER_MS);
             };
 

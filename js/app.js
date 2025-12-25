@@ -32,6 +32,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     let isVideoMode = false;
     let currentImageUrls = { original: null, processed: null };
     let currentVideoUrls = { original: null, processed: null };
+    
+    // Cache container elements
+    const originalImageContainer = document.getElementById('originalImageContainer');
+    const processedImageContainer = document.getElementById('processedImageContainer');
+    const originalVideoContainer = document.getElementById('originalVideoContainer');
+    const processedVideoContainer = document.getElementById('processedVideoContainer');
+
+    // Helper function to switch display mode
+    function setDisplayMode(videoMode) {
+        if (videoMode) {
+            originalImageContainer?.classList.add('hidden');
+            processedImageContainer?.classList.add('hidden');
+            originalVideoContainer?.classList.remove('hidden');
+            processedVideoContainer?.classList.remove('hidden');
+        } else {
+            originalImageContainer?.classList.remove('hidden');
+            processedImageContainer?.classList.remove('hidden');
+            originalVideoContainer?.classList.add('hidden');
+            processedVideoContainer?.classList.add('hidden');
+        }
+        isVideoMode = videoMode;
+    }
 
     // --- Init ---
     try {
@@ -83,14 +105,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (originalVideo) originalVideo.src = '';
         if (processedVideo) processedVideo.src = '';
         
-        // Hide video elements and show image elements
-        if (isVideoMode) {
-            document.getElementById('originalImageContainer')?.classList.remove('hidden');
-            document.getElementById('processedImageContainer')?.classList.remove('hidden');
-            document.getElementById('originalVideoContainer')?.classList.add('hidden');
-            document.getElementById('processedVideoContainer')?.classList.add('hidden');
-            isVideoMode = false;
-        }
+        // Reset to image mode
+        setDisplayMode(false);
     });
 
     // --- Processing Logic ---
@@ -141,12 +157,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Clean up old URLs
         if (currentImageUrls.processed) URL.revokeObjectURL(currentImageUrls.processed);
         
-        // Hide video elements, show image elements
-        isVideoMode = false;
-        document.getElementById('originalImageContainer')?.classList.remove('hidden');
-        document.getElementById('processedImageContainer')?.classList.remove('hidden');
-        document.getElementById('originalVideoContainer')?.classList.add('hidden');
-        document.getElementById('processedVideoContainer')?.classList.add('hidden');
+        // Switch to image display mode
+        setDisplayMode(false);
         
         // 1. Update Images
         currentImageUrls.original = result.originalSrc;
@@ -191,18 +203,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (currentVideoUrls.original) URL.revokeObjectURL(currentVideoUrls.original);
         if (currentVideoUrls.processed) URL.revokeObjectURL(currentVideoUrls.processed);
         
-        // Hide image elements, show video elements
-        isVideoMode = true;
-        document.getElementById('originalImageContainer')?.classList.add('hidden');
-        document.getElementById('processedImageContainer')?.classList.add('hidden');
-        document.getElementById('originalVideoContainer')?.classList.remove('hidden');
-        document.getElementById('processedVideoContainer')?.classList.remove('hidden');
+        // Switch to video display mode
+        setDisplayMode(true);
         
         // 1. Update Videos
         currentVideoUrls.original = URL.createObjectURL(file);
         currentVideoUrls.processed = URL.createObjectURL(result.blob);
-        originalVideo.src = currentVideoUrls.original;
-        processedVideo.src = currentVideoUrls.processed;
+        if (originalVideo) originalVideo.src = currentVideoUrls.original;
+        if (processedVideo) processedVideo.src = currentVideoUrls.processed;
         
         // 2. Update Metadata
         const sizeText = `${result.width} × ${result.height} px`;
