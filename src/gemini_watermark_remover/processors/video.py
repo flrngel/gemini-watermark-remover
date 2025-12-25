@@ -12,6 +12,7 @@ from ..core import PIXELS_720P, PIXELS_1080P, PIXELS_4K
 from ..core.alpha_map import get_alpha_map
 from ..core.blend import remove_watermark
 from ..core.position import calculate_veo_watermark_position, calculate_watermark_position
+from ..core.position import VeoWatermarkPosition
 
 SUPPORTED_VIDEO_FORMATS = {".mp4", ".webm", ".mov", ".avi", ".mkv"}
 
@@ -70,6 +71,46 @@ def calculate_bitrate(width: int, height: int) -> int:
         return BITRATE_HIGHER
 
 
+def remove_veo_watermark(
+    image_array: np.ndarray,
+    veo_pos: VeoWatermarkPosition,
+) -> np.ndarray:
+    """
+    Remove Veo watermark by sampling pixels from above the watermark region.
+
+    This technique copies pixels from just above the watermark area,
+    producing cleaner results than blur-based interpolation.
+
+    Args:
+        image_array: Input image as numpy array (H, W, C)
+        veo_pos: Veo watermark position
+
+    Returns:
+        Modified image array with Veo watermark removed
+    """
+    x, y = veo_pos.x, veo_pos.y
+    w, h = veo_pos.width, veo_pos.height
+    img_h, img_w = image_array.shape[:2]
+
+    # Bounds checking
+    if x < 0 or y < 0 or x + w > img_w or y + h > img_h:
+        return image_array
+
+    # Ensure we have enough space above to sample from
+    if y < h:
+        return image_array
+
+    # Sample region from just above the watermark
+    # Take a strip of the same size from above
+    source_y = y - h
+    source_region = image_array[source_y:source_y + h, x:x + w].copy()
+
+    # Copy source region to cover the watermark
+    image_array[y:y + h, x:x + w] = source_region
+
+    return image_array
+
+
 def process_video(
     input_path: Path,
     output_path: Path | None = None,
@@ -81,7 +122,7 @@ def process_video(
 
     Combines two watermark removal techniques:
     1. Gemini: Frame-by-frame alpha blending reversal
-    2. Veo: ffmpeg delogo filter applied during reassembly
+    2. Veo: Pixel sampling from above watermark region (no blur)
 
     Args:
         input_path: Path to input video
@@ -132,7 +173,7 @@ def process_video(
         subprocess.run(extract_cmd, stdin=subprocess.DEVNULL,
                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
-        # Process each frame for Gemini watermark removal
+        # Process each frame for watermark removal
         frame_files = sorted(frames_dir.glob("frame_*.png"))
         processed_dir = temp_path / "processed"
         processed_dir.mkdir()
@@ -145,6 +186,9 @@ def process_video(
             # Remove Gemini watermark (alpha blending)
             result_array = remove_watermark(frame_array, alpha_map, gemini_pos)
 
+            # Remove Veo watermark (pixel sampling - no blur)
+            result_array = remove_veo_watermark(result_array, veo_pos)
+
             # Save processed frame
             result_image = Image.fromarray(result_array)
             result_image.save(processed_dir / frame_file.name)
@@ -153,19 +197,10 @@ def process_video(
             if progress_callback:
                 progress_callback(i + 1, len(frame_files))
 
-        # Reassemble video with ffmpeg, applying Veo delogo filter
+        # Reassemble video with ffmpeg (no delogo filter needed now)
         video_input = ffmpeg.input(
             str(processed_dir / "frame_%06d.png"),
             framerate=fps,
-        )
-
-        # Apply Veo delogo filter during reassembly
-        video_stream = video_input.filter(
-            "delogo",
-            x=veo_pos.x,
-            y=veo_pos.y,
-            w=veo_pos.width,
-            h=veo_pos.height,
         )
 
         if has_audio:
@@ -173,7 +208,7 @@ def process_video(
             audio_input = ffmpeg.input(str(input_path)).audio
             reassemble_cmd = (
                 ffmpeg.output(
-                    video_stream,
+                    video_input,
                     audio_input,
                     str(output_path),
                     vcodec="libx264",
@@ -190,7 +225,7 @@ def process_video(
         else:
             reassemble_cmd = (
                 ffmpeg.output(
-                    video_stream,
+                    video_input,
                     str(output_path),
                     vcodec="libx264",
                     preset="medium",
