@@ -18,13 +18,23 @@ uv run gemini-watermark-remover process <file>
 
 ## Architecture
 
-Python CLI tool using `uv` for package management. Removes Gemini AI watermarks from images/videos using reverse alpha blending.
+Python CLI tool using `uv` for package management. Removes watermarks from Google AI-generated content:
+- **Gemini**: Reverse alpha blending with known alpha maps
+- **Veo**: ffmpeg delogo filter (use `--veo` flag)
 
-### Core Algorithm
+### Gemini Algorithm
 
 ```python
 # Reverse Alpha Blending Formula
 original = (watermarked - alpha * 255) / (1 - alpha)
+```
+
+### Veo Algorithm
+
+Uses ffmpeg's delogo filter for efficient watermark removal:
+```python
+# Delogo filter parameters
+ffmpeg.filter("delogo", x=pos.x, y=pos.y, w=pos.width, h=pos.height)
 ```
 
 Constants in `src/gemini_watermark_remover/core/__init__.py`:
@@ -34,20 +44,30 @@ Constants in `src/gemini_watermark_remover/core/__init__.py`:
 
 ### Module Structure
 
-- **`core/blend.py`** - Vectorized numpy watermark removal
+- **`core/blend.py`** - Vectorized numpy watermark removal (Gemini)
 - **`core/alpha_map.py`** - Loads reference PNGs, extracts alpha as `max(R,G,B)/255`
-- **`core/position.py`** - Calculates watermark position (48px for ≤1024px, 96px for larger)
-- **`processors/image.py`** - Pillow-based single image processing
-- **`processors/video.py`** - ffmpeg frame extraction, processing, reassembly with H.264
+- **`core/position.py`** - Calculates watermark position for both Gemini and Veo
+- **`processors/image.py`** - Pillow-based single image processing (Gemini only)
+- **`processors/video.py`** - Video processing with `process_video` (Gemini) and `process_veo_video` (Veo)
 - **`cli.py`** - typer CLI with `process` and `info` commands
 
-### Watermark Position Logic
+### Gemini Watermark Position
 
 ```python
 is_large = width > 1024 or height > 1024
 size = 96 if is_large else 48
 margin = 64 if is_large else 32
 x, y = width - margin - size, height - margin - size
+```
+
+### Veo Watermark Position
+
+```python
+# Scales with video resolution
+width = max(60, int(video_width * 0.05))   # ~5% of width
+height = max(24, int(video_height * 0.03))  # ~3% of height
+margin = max(8, int(dimension * 0.01))      # ~1% margin
+x, y = video_width - margin - width, video_height - margin - height
 ```
 
 ### Video Bitrate Tiers

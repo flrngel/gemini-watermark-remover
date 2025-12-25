@@ -10,7 +10,7 @@ from ..core import BITRATE_720P, BITRATE_1080P, BITRATE_4K, BITRATE_HIGHER
 from ..core import PIXELS_720P, PIXELS_1080P, PIXELS_4K
 from ..core.alpha_map import get_alpha_map
 from ..core.blend import remove_watermark
-from ..core.position import calculate_watermark_position
+from ..core.position import calculate_veo_watermark_position, calculate_watermark_position
 
 SUPPORTED_VIDEO_FORMATS = {".mp4", ".webm", ".mov", ".avi", ".mkv"}
 
@@ -188,5 +188,101 @@ def process_video(
                 .overwrite_output()
                 .run(quiet=True)
             )
+
+    return output_path
+
+
+def process_veo_video(
+    input_path: Path,
+    output_path: Path | None = None,
+    suffix: str = "_cleaned",
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> Path:
+    """
+    Process video to remove Veo watermark using ffmpeg delogo filter.
+
+    This is much faster than frame-by-frame processing because it uses
+    ffmpeg's native filter chain without extracting individual frames.
+
+    The delogo filter uses spatial interpolation to replace the watermark
+    region with surrounding pixel values.
+
+    Args:
+        input_path: Path to input video
+        output_path: Optional explicit output path
+        suffix: Suffix for auto-generated output filename
+        progress_callback: Optional callback (not used, included for API compatibility)
+
+    Returns:
+        Path to output MP4 file
+    """
+    # Determine output path (always MP4)
+    if output_path is None:
+        output_path = input_path.parent / f"{input_path.stem}{suffix}.mp4"
+
+    # Ensure output has .mp4 extension
+    if output_path.suffix.lower() != ".mp4":
+        output_path = output_path.with_suffix(".mp4")
+
+    # Get video metadata
+    info = get_video_info(input_path)
+    width, height = info["width"], info["height"]
+    has_audio = info["has_audio"]
+
+    # Calculate Veo watermark position
+    veo_pos = calculate_veo_watermark_position(width, height)
+
+    # Calculate bitrate
+    bitrate = calculate_bitrate(width, height)
+
+    # Build delogo filter string
+    # delogo filter: x, y, w, h, show (0=remove, 1=show green rectangle for debugging)
+    delogo_filter = f"delogo=x={veo_pos.x}:y={veo_pos.y}:w={veo_pos.width}:h={veo_pos.height}"
+
+    # Process video with ffmpeg using delogo filter
+    video_input = ffmpeg.input(str(input_path))
+
+    if has_audio:
+        video_stream = video_input.video.filter("delogo",
+                                                 x=veo_pos.x,
+                                                 y=veo_pos.y,
+                                                 w=veo_pos.width,
+                                                 h=veo_pos.height)
+        audio_stream = video_input.audio
+        (
+            ffmpeg.output(
+                video_stream,
+                audio_stream,
+                str(output_path),
+                vcodec="libx264",
+                preset="medium",
+                crf=18,
+                video_bitrate=bitrate,
+                pix_fmt="yuv420p",
+                acodec="aac",
+                audio_bitrate="192k",
+            )
+            .overwrite_output()
+            .run(quiet=True)
+        )
+    else:
+        video_stream = video_input.video.filter("delogo",
+                                                 x=veo_pos.x,
+                                                 y=veo_pos.y,
+                                                 w=veo_pos.width,
+                                                 h=veo_pos.height)
+        (
+            ffmpeg.output(
+                video_stream,
+                str(output_path),
+                vcodec="libx264",
+                preset="medium",
+                crf=18,
+                video_bitrate=bitrate,
+                pix_fmt="yuv420p",
+            )
+            .overwrite_output()
+            .run(quiet=True)
+        )
 
     return output_path

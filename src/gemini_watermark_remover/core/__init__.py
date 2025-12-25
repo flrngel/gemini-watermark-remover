@@ -22,3 +22,12 @@ BITRATE_HIGHER: int = 60_000_000  # 60 Mbps
 PIXELS_720P: int = 1280 * 720  # 921,600
 PIXELS_1080P: int = 1920 * 1080  # 2,073,600
 PIXELS_4K: int = 3840 * 2160  # 8,294,400
+
+# Veo watermark settings
+# Veo watermark is "Veo" text in bottom-right corner
+# Size scales with video resolution
+VEO_WATERMARK_WIDTH_RATIO: float = 0.05  # ~5% of video width
+VEO_WATERMARK_HEIGHT_RATIO: float = 0.03  # ~3% of video height
+VEO_WATERMARK_MARGIN_RATIO: float = 0.01  # ~1% margin from corner
+VEO_MIN_WIDTH: int = 60  # Minimum watermark width
+VEO_MIN_HEIGHT: int = 24  # Minimum watermark height
