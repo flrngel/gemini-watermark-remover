@@ -162,7 +162,9 @@ export class VideoWatermarkEngine {
                 // Process each frame as it's drawn to the canvas
                 // Frames are processed at browser refresh rate (~60fps) using requestAnimationFrame
                 // but the MediaRecorder captures and encodes them at the configured RECORDING_FPS
-                const processFrame = async () => {
+                let recordingStopped = false;
+                
+                const processFrame = () => {
                     if (video.ended || video.paused) {
                         // Don't stop here - let onended handler manage the stop with buffer time
                         return;
@@ -186,7 +188,8 @@ export class VideoWatermarkEngine {
                     // Give a small buffer to ensure all frames are captured
                     // This prevents race conditions where the recorder stops before the last frame
                     setTimeout(() => {
-                        if (mediaRecorder.state !== 'inactive') {
+                        if (!recordingStopped && mediaRecorder.state !== 'inactive') {
+                            recordingStopped = true;
                             mediaRecorder.stop();
                         }
                     }, this.FRAME_CAPTURE_BUFFER_MS);
