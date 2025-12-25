@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>AI Sparkle Remover | Free Image Tool</title>
-  <meta name="title" content="AI Sparkle Remover | Free Image Tool">
-  <meta name="description" content="A client-side utility to remove sparkle watermarks from AI-generated images. Free, private, and open source.">
-  <meta name="keywords" content="sparkle remover, ai watermark remover, gemini sparkle, ai image cleaner, client-side, free tool">
+  <title>AI Sparkle Remover | Remove Watermarks from Images & Videos</title>
+  <meta name="title" content="AI Sparkle Remover | Remove Watermarks from Images & Videos">
+  <meta name="description" content="A client-side utility to remove sparkle watermarks from AI-generated images and videos. Free, private, and open source.">
+  <meta name="keywords" content="sparkle remover, ai watermark remover, gemini sparkle, ai image cleaner, video watermark remover, client-side, free tool">
   <meta name="author" content="Abhin Krishna">
   <meta name="robots" content="index, follow">
   
@@ -104,7 +104,7 @@
       </h2>
       
       <p class="text-slate-500 dark:text-slate-400 mb-8 max-w-xl mx-auto font-medium leading-relaxed text-base md:text-lg">
-        Remove the visible ✨ AI-Sparkle watermark from AI generated images.
+        Remove the visible ✨ AI-Sparkle watermark from AI generated images and videos.
         <span class="block md:inline">Client-side processing powered by your browser.</span> 
         <span class="block md:inline text-brand-primary dark:text-brand-secondary font-semibold">Free, fast, lossless and private.</span>
       </p>
@@ -116,10 +116,10 @@
             <div class="w-16 h-16 bg-white dark:bg-gray-700 rounded-full shadow-sm flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
               <iconify-icon icon="ph:upload-simple-bold" class="text-3xl text-gray-400 dark:text-gray-300 group-hover:text-brand-primary"></iconify-icon>
             </div>
-            <p class="mb-2 text-lg font-bold text-slate-700 dark:text-slate-200 group-hover:text-brand-primary transition-colors">Click to upload or drag image</p>
-            <p class="text-sm text-slate-400 dark:text-slate-500">Supports PNG, JPG, WebP</p>
+            <p class="mb-2 text-lg font-bold text-slate-700 dark:text-slate-200 group-hover:text-brand-primary transition-colors">Click to upload or drag image/video</p>
+            <p class="text-sm text-slate-400 dark:text-slate-500">Supports PNG, JPG, WebP, MP4, WebM</p>
           </div>
-          <input type="file" id="fileInput" accept="image/*" class="hidden" />
+          <input type="file" id="fileInput" accept="image/*,video/*" class="hidden" />
         </div>
 
         <div id="previewSection" class="hidden text-left mt-6 animate-fade-in">
@@ -127,7 +127,8 @@
             
             <div class="flex-1 space-y-6 min-w-0">
                 
-                <div class="bg-white dark:bg-theme-cardDark rounded-2xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
+                <!-- Original Image Container -->
+                <div id="originalImageContainer" class="bg-white dark:bg-theme-cardDark rounded-2xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
                     <div class="bg-gray-50 dark:bg-gray-800/80 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                         <div class="flex items-center gap-2">
                              <span class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
@@ -142,7 +143,21 @@
                     </div>
                 </div>
                 
-                <div class="bg-white dark:bg-theme-cardDark rounded-2xl shadow-md overflow-hidden border border-brand-primary/30 ring-2 ring-brand-primary/10">
+                <!-- Original Video Container -->
+                <div id="originalVideoContainer" class="hidden bg-white dark:bg-theme-cardDark rounded-2xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
+                    <div class="bg-gray-50 dark:bg-gray-800/80 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                             <span class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
+                             <h3 class="font-bold text-slate-700 dark:text-slate-200 text-sm">Original Video</h3>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-gray-900">
+                        <video id="originalVideo" controls class="max-w-full max-h-[500px] h-auto rounded shadow-sm mx-auto"></video>
+                    </div>
+                </div>
+                
+                <!-- Processed Image Container -->
+                <div id="processedImageContainer" class="bg-white dark:bg-theme-cardDark rounded-2xl shadow-md overflow-hidden border border-brand-primary/30 ring-2 ring-brand-primary/10">
                     <div class="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 px-4 py-3 border-b border-brand-primary/20 flex justify-between items-center flex-wrap">
                         <div class="flex items-center gap-2">
                              <span class="w-2.5 h-2.5 rounded-full bg-brand-primary animate-pulse"></span>
@@ -155,6 +170,19 @@
                     </div>
                     <div class="p-4 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgZmlsbD0iI2Y5ZmRmZCI+PHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjZjJmMmYyIi8+PHJlY3QgeD0iMTAiIHk9IjEwIiB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIGZpbGw9IiNmMmYyZjIiLz48L3N2Zz4=')] dark:bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgZmlsbD0ibm9uZSI+PHJlY3Qgd2lkdGg9IjIwIiBoZWlnaHQ9IjIwIiBmaWxsPSIjMjYyOTMwIi8+PHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjMWQxZjI0Ii8+PHJlY3QgeD0iMTAiIHk9IjEwIiB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIGZpbGw9IiMxZDFmMjQiLz48L3N2Zz4=')]">
                         <img id="processedImage" class="max-w-full max-h-[500px] h-auto rounded shadow-sm object-contain mx-auto" />
+                    </div>
+                </div>
+                
+                <!-- Processed Video Container -->
+                <div id="processedVideoContainer" class="hidden bg-white dark:bg-theme-cardDark rounded-2xl shadow-md overflow-hidden border border-brand-primary/30 ring-2 ring-brand-primary/10">
+                    <div class="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 px-4 py-3 border-b border-brand-primary/20 flex justify-between items-center flex-wrap">
+                        <div class="flex items-center gap-2">
+                             <span class="w-2.5 h-2.5 rounded-full bg-brand-primary animate-pulse"></span>
+                             <h3 class="font-bold text-brand-primary dark:text-indigo-400 text-sm">Processed Video</h3>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-gray-900">
+                        <video id="processedVideo" controls class="max-w-full max-h-[500px] h-auto rounded shadow-sm mx-auto"></video>
                     </div>
                 </div>
             </div>
@@ -263,9 +291,12 @@
   </footer>
 
   <div id="loadingOverlay" class="fixed inset-0 bg-white/90 dark:bg-theme-dark/90 backdrop-blur-sm z-50 hidden items-center justify-center">
-    <div class="flex flex-col items-center">
+    <div class="flex flex-col items-center max-w-md w-full px-4">
       <div class="w-16 h-16 rounded-full border-4 border-transparent border-t-brand-primary border-r-brand-secondary border-b-brand-accent animate-spin mb-4"></div>
-      <p class="text-brand-primary font-bold text-lg animate-pulse">Processing...</p>
+      <p id="loadingText" class="text-brand-primary font-bold text-lg animate-pulse mb-4">Processing...</p>
+      <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+        <div id="progressBar" class="bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-accent h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+      </div>
     </div>
   </div>
 
