@@ -6,6 +6,9 @@ export class VideoWatermarkEngine {
         this.bg48 = bg48;
         this.bg96 = bg96;
         this.alphaMaps = {};
+        // Configuration constants
+        this.DEFAULT_VIDEO_BITRATE = 5000000; // 5 Mbps
+        this.FRAME_CAPTURE_BUFFER_MS = 100; // Buffer to ensure all frames are captured
     }
 
     static async create() {
@@ -56,45 +59,47 @@ export class VideoWatermarkEngine {
     }
 
     async processVideo(videoFile, onProgress) {
-        return new Promise(async (resolve, reject) => {
-            const video = document.createElement('video');
-            video.src = URL.createObjectURL(videoFile);
-            video.muted = true;
-            
-            await new Promise((res) => {
-                video.onloadedmetadata = res;
-            });
+        const video = document.createElement('video');
+        video.src = URL.createObjectURL(videoFile);
+        video.muted = true;
+        
+        await new Promise((res) => {
+            video.onloadedmetadata = res;
+        });
 
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
 
-            const config = this.getWatermarkInfo(canvas.width, canvas.height);
-            const alphaMap = await this.getAlphaMap(config.size);
+        const config = this.getWatermarkInfo(canvas.width, canvas.height);
+        const alphaMap = await this.getAlphaMap(config.size);
 
-            // Create a MediaStream from canvas
-            const stream = canvas.captureStream(30); // 30 fps
-            
-            // Get the original audio track if available
-            const audioContext = new AudioContext();
-            let audioDestination = null;
-            let audioSource = null;
-            
-            try {
-                const originalStream = video.captureStream();
-                const audioTracks = originalStream.getAudioTracks();
-                if (audioTracks.length > 0) {
-                    audioDestination = audioContext.createMediaStreamDestination();
-                    audioSource = audioContext.createMediaStreamSource(originalStream);
-                    audioSource.connect(audioDestination);
-                    audioDestination.stream.getAudioTracks().forEach(track => {
-                        stream.addTrack(track);
-                    });
-                }
-            } catch (e) {
-                console.log('No audio track available or error capturing audio:', e);
+        // Create a MediaStream from canvas
+        const stream = canvas.captureStream(30); // 30 fps
+        
+        // Get the original audio track if available
+        let audioContext = null;
+        let audioDestination = null;
+        let audioSource = null;
+        
+        try {
+            const originalStream = video.captureStream();
+            const audioTracks = originalStream.getAudioTracks();
+            if (audioTracks.length > 0) {
+                audioContext = new AudioContext();
+                audioDestination = audioContext.createMediaStreamDestination();
+                audioSource = audioContext.createMediaStreamSource(originalStream);
+                audioSource.connect(audioDestination);
+                audioDestination.stream.getAudioTracks().forEach(track => {
+                    stream.addTrack(track);
+                });
             }
+        } catch (e) {
+            console.log('No audio track available or error capturing audio:', e);
+        }
+
+        return new Promise((resolve, reject) => {
 
             // Create MediaRecorder with fallback codec support
             let mediaRecorder;
@@ -114,7 +119,7 @@ export class VideoWatermarkEngine {
             
             mediaRecorder = new MediaRecorder(stream, {
                 mimeType: selectedMimeType,
-                videoBitsPerSecond: 5000000
+                videoBitsPerSecond: this.DEFAULT_VIDEO_BITRATE
             });
 
             const chunks = [];
@@ -176,7 +181,7 @@ export class VideoWatermarkEngine {
                 // This prevents race conditions where the recorder stops before the last frame
                 setTimeout(() => {
                     mediaRecorder.stop();
-                }, 100);
+                }, this.FRAME_CAPTURE_BUFFER_MS);
             };
 
             processFrame();
