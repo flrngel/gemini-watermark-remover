@@ -9,6 +9,7 @@ export class VideoWatermarkEngine {
         // Configuration constants
         this.DEFAULT_VIDEO_BITRATE = 5000000; // 5 Mbps
         this.FRAME_CAPTURE_BUFFER_MS = 100; // Buffer to ensure all frames are captured
+        this.RECORDING_FPS = 30; // Output video frame rate
     }
 
     static async create() {
@@ -60,46 +61,48 @@ export class VideoWatermarkEngine {
 
     async processVideo(videoFile, onProgress) {
         const video = document.createElement('video');
-        video.src = URL.createObjectURL(videoFile);
+        const videoUrl = URL.createObjectURL(videoFile);
+        video.src = videoUrl;
         video.muted = true;
         
-        await new Promise((res) => {
-            video.onloadedmetadata = res;
-        });
-
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-
-        const config = this.getWatermarkInfo(canvas.width, canvas.height);
-        const alphaMap = await this.getAlphaMap(config.size);
-
-        // Create a MediaStream from canvas
-        const stream = canvas.captureStream(30); // 30 fps
-        
-        // Get the original audio track if available
-        let audioContext = null;
-        let audioDestination = null;
-        let audioSource = null;
-        
         try {
-            const originalStream = video.captureStream();
-            const audioTracks = originalStream.getAudioTracks();
-            if (audioTracks.length > 0) {
-                audioContext = new AudioContext();
-                audioDestination = audioContext.createMediaStreamDestination();
-                audioSource = audioContext.createMediaStreamSource(originalStream);
-                audioSource.connect(audioDestination);
-                audioDestination.stream.getAudioTracks().forEach(track => {
-                    stream.addTrack(track);
-                });
-            }
-        } catch (e) {
-            console.log('No audio track available or error capturing audio:', e);
-        }
+            await new Promise((res) => {
+                video.onloadedmetadata = res;
+            });
 
-        return new Promise((resolve, reject) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+
+            const config = this.getWatermarkInfo(canvas.width, canvas.height);
+            const alphaMap = await this.getAlphaMap(config.size);
+
+            // Create a MediaStream from canvas at specified FPS
+            const stream = canvas.captureStream(this.RECORDING_FPS);
+            
+            // Get the original audio track if available
+            let audioContext = null;
+            let audioDestination = null;
+            let audioSource = null;
+            
+            try {
+                const originalStream = video.captureStream();
+                const audioTracks = originalStream.getAudioTracks();
+                if (audioTracks.length > 0) {
+                    audioContext = new AudioContext();
+                    audioDestination = audioContext.createMediaStreamDestination();
+                    audioSource = audioContext.createMediaStreamSource(originalStream);
+                    audioSource.connect(audioDestination);
+                    audioDestination.stream.getAudioTracks().forEach(track => {
+                        stream.addTrack(track);
+                    });
+                }
+            } catch (e) {
+                console.log('No audio track available or error capturing audio:', e);
+            }
+
+            return new Promise((resolve, reject) => {
 
             // Create MediaRecorder with fallback codec support
             let mediaRecorder;
@@ -131,7 +134,7 @@ export class VideoWatermarkEngine {
 
             mediaRecorder.onstop = () => {
                 const blob = new Blob(chunks, { type: 'video/webm' });
-                URL.revokeObjectURL(video.src);
+                URL.revokeObjectURL(videoUrl);
                 if (audioContext) {
                     audioContext.close();
                 }
@@ -144,6 +147,10 @@ export class VideoWatermarkEngine {
             };
 
             mediaRecorder.onerror = (e) => {
+                URL.revokeObjectURL(videoUrl);
+                if (audioContext) {
+                    audioContext.close();
+                }
                 reject(e);
             };
 
@@ -154,8 +161,8 @@ export class VideoWatermarkEngine {
             video.play();
             
             // Process each frame as it's drawn to the canvas
-            // requestAnimationFrame is used to sync with browser refresh rate (~60fps)
-            // which prevents excessive CPU usage while maintaining smooth processing
+            // Frames are processed at browser refresh rate (~60fps) using requestAnimationFrame
+            // but the MediaRecorder captures and encodes them at the configured RECORDING_FPS
             const processFrame = async () => {
                 if (video.ended || video.paused) {
                     mediaRecorder.stop();
@@ -186,5 +193,10 @@ export class VideoWatermarkEngine {
 
             processFrame();
         });
+        } catch (error) {
+            // Clean up resources on error
+            URL.revokeObjectURL(videoUrl);
+            throw error;
+        }
     }
 }
