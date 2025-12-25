@@ -10,6 +10,8 @@ export class VideoWatermarkEngine {
         this.DEFAULT_VIDEO_BITRATE = 15000000; // 15 Mbps for better quality
         this.FRAME_CAPTURE_BUFFER_MS = 200; // Increased buffer to ensure all frames are captured
         this.DEFAULT_RECORDING_FPS = 30; // Default output video frame rate if detection fails
+        this.FINAL_FRAME_DELAY_MS = 100; // Additional delay before stopping to ensure last frame is recorded
+        this.FRAME_TOLERANCE_MS = 1; // Tolerance for frame interval matching
     }
 
     static async create() {
@@ -87,26 +89,12 @@ export class VideoWatermarkEngine {
     /**
      * Attempt to detect the original video's frame rate
      * Falls back to default if detection fails
+     * Note: Browser APIs for frame rate detection are limited and often unreliable
      */
     detectFrameRate(video) {
-        try {
-            // Try to get frame rate from video metadata if available
-            // Note: This is not always reliable across all browsers/formats
-            if (video.mozParsedFrames !== undefined && video.mozParsedFrames > 0) {
-                // Firefox
-                const fps = video.mozParsedFrames / video.duration;
-                if (fps > 0 && fps <= 120) return Math.round(fps);
-            }
-            if (video.webkitDecodedFrameCount !== undefined && video.webkitDecodedFrameCount > 0) {
-                // Older Chrome/Safari
-                const fps = video.webkitDecodedFrameCount / video.duration;
-                if (fps > 0 && fps <= 120) return Math.round(fps);
-            }
-        } catch (e) {
-            console.log('Could not detect frame rate:', e);
-        }
-        
-        // Default to 30 FPS for most videos
+        // Modern browsers don't provide reliable frame rate detection APIs
+        // The mozParsedFrames and webkitDecodedFrameCount properties are deprecated
+        // Default to 30 FPS which works well for most videos
         return this.DEFAULT_RECORDING_FPS;
     }
 
@@ -126,9 +114,11 @@ export class VideoWatermarkEngine {
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
+            // Use synchronous canvas drawing for consistency
+            // This ensures frames are drawn in order without timing issues
             const ctx = canvas.getContext('2d', { 
                 alpha: false,
-                desynchronized: false // Ensure synchronous drawing for consistency
+                desynchronized: false
             });
 
             const config = this.getWatermarkInfo(canvas.width, canvas.height);
@@ -237,7 +227,7 @@ export class VideoWatermarkEngine {
                     // This helps prevent processing the same frame multiple times
                     const elapsed = currentTime - lastFrameTime;
                     
-                    if (elapsed >= frameInterval - 1) { // Small tolerance
+                    if (elapsed >= frameInterval - this.FRAME_TOLERANCE_MS) {
                         lastFrameTime = currentTime;
                         
                         // Draw and process the current frame
@@ -274,7 +264,7 @@ export class VideoWatermarkEngine {
                                 if (mediaRecorder.state !== 'inactive') {
                                     mediaRecorder.stop();
                                 }
-                            }, 100);
+                            }, this.FINAL_FRAME_DELAY_MS);
                         }
                     }, this.FRAME_CAPTURE_BUFFER_MS);
                 };
