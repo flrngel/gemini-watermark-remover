@@ -87,13 +87,12 @@ export class VideoWatermarkEngine {
     }
 
     /**
-     * Attempt to detect the original video's frame rate
-     * Falls back to default if detection fails
-     * Note: Browser APIs for frame rate detection are limited and often unreliable
+     * Get the target frame rate for video processing
+     * Currently returns a fixed FPS as browser APIs for frame rate detection
+     * are limited and unreliable. Future enhancement could use
+     * video.requestVideoFrameCallback() when widely supported.
      */
-    detectFrameRate(video) {
-        // Modern browsers don't provide reliable frame rate detection APIs
-        // The mozParsedFrames and webkitDecodedFrameCount properties are deprecated
+    getTargetFrameRate() {
         // Default to 30 FPS which works well for most videos
         return this.DEFAULT_RECORDING_FPS;
     }
@@ -126,7 +125,7 @@ export class VideoWatermarkEngine {
 
             // Calculate optimal bitrate and FPS based on video properties
             const bitrate = this.calculateBitrate(canvas.width, canvas.height);
-            const fps = this.detectFrameRate(video);
+            const fps = this.getTargetFrameRate();
             
             console.log(`Processing video: ${canvas.width}x${canvas.height}, FPS: ${fps}, Bitrate: ${bitrate}`);
 
@@ -211,6 +210,14 @@ export class VideoWatermarkEngine {
                 // Start recording
                 mediaRecorder.start();
 
+                // Helper function to process a single frame
+                const processCurrentFrame = () => {
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    removeWatermark(imageData, alphaMap, config);
+                    ctx.putImageData(imageData, 0, 0);
+                };
+
                 // Process frames with better synchronization
                 video.play();
                 
@@ -227,14 +234,11 @@ export class VideoWatermarkEngine {
                     // This helps prevent processing the same frame multiple times
                     const elapsed = currentTime - lastFrameTime;
                     
+                    // Process frame if enough time has elapsed
+                    // Small tolerance ensures we don't skip frames due to timing variations
                     if (elapsed >= frameInterval - this.FRAME_TOLERANCE_MS) {
                         lastFrameTime = currentTime;
-                        
-                        // Draw and process the current frame
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        removeWatermark(imageData, alphaMap, config);
-                        ctx.putImageData(imageData, 0, 0);
+                        processCurrentFrame();
 
                         // Report progress
                         if (onProgress && video.duration > 0) {
@@ -254,10 +258,7 @@ export class VideoWatermarkEngine {
                             recordingStopped = true;
                             
                             // Process the last frame one more time to ensure it's captured
-                            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                            removeWatermark(imageData, alphaMap, config);
-                            ctx.putImageData(imageData, 0, 0);
+                            processCurrentFrame();
                             
                             // Small additional delay before stopping to ensure last frame is recorded
                             setTimeout(() => {
