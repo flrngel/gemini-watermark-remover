@@ -76,13 +76,11 @@ def process_video(
     progress_callback: Callable[[int, int], None] | None = None,
 ) -> Path:
     """
-    Process video to remove watermark from all frames.
+    Process video to remove ALL watermarks (Gemini + Veo).
 
-    Uses ffmpeg to:
-    1. Extract frames
-    2. Process each frame with watermark removal
-    3. Reassemble with H.264 encoding
-    4. Preserve original audio track
+    Combines two watermark removal techniques:
+    1. Gemini: Frame-by-frame alpha blending reversal
+    2. Veo: ffmpeg delogo filter applied during reassembly
 
     Args:
         input_path: Path to input video
@@ -107,9 +105,12 @@ def process_video(
     fps = info["fps"]
     has_audio = info["has_audio"]
 
-    # Calculate watermark position and get alpha map
-    position = calculate_watermark_position(width, height)
-    alpha_map = get_alpha_map(position.size)
+    # Calculate Gemini watermark position and get alpha map
+    gemini_pos = calculate_watermark_position(width, height)
+    alpha_map = get_alpha_map(gemini_pos.size)
+
+    # Calculate Veo watermark position
+    veo_pos = calculate_veo_watermark_position(width, height)
 
     # Calculate bitrate
     bitrate = calculate_bitrate(width, height)
@@ -128,7 +129,7 @@ def process_video(
             .run(quiet=True)
         )
 
-        # Process each frame
+        # Process each frame for Gemini watermark removal
         frame_files = sorted(frames_dir.glob("frame_*.png"))
         processed_dir = temp_path / "processed"
         processed_dir.mkdir()
@@ -138,8 +139,8 @@ def process_video(
             with Image.open(frame_file) as img:
                 frame_array = np.array(img.convert("RGB"), dtype=np.uint8)
 
-            # Remove watermark
-            result_array = remove_watermark(frame_array, alpha_map, position)
+            # Remove Gemini watermark (alpha blending)
+            result_array = remove_watermark(frame_array, alpha_map, gemini_pos)
 
             # Save processed frame
             result_image = Image.fromarray(result_array)
@@ -149,10 +150,19 @@ def process_video(
             if progress_callback:
                 progress_callback(i + 1, len(frame_files))
 
-        # Reassemble video with ffmpeg
+        # Reassemble video with ffmpeg, applying Veo delogo filter
         video_input = ffmpeg.input(
             str(processed_dir / "frame_%06d.png"),
             framerate=fps,
+        )
+
+        # Apply Veo delogo filter during reassembly
+        video_stream = video_input.filter(
+            "delogo",
+            x=veo_pos.x,
+            y=veo_pos.y,
+            w=veo_pos.width,
+            h=veo_pos.height,
         )
 
         if has_audio:
@@ -160,7 +170,7 @@ def process_video(
             audio_input = ffmpeg.input(str(input_path)).audio
             (
                 ffmpeg.output(
-                    video_input,
+                    video_stream,
                     audio_input,
                     str(output_path),
                     vcodec="libx264",
@@ -177,7 +187,7 @@ def process_video(
         else:
             (
                 ffmpeg.output(
-                    video_input,
+                    video_stream,
                     str(output_path),
                     vcodec="libx264",
                     preset="medium",
@@ -188,101 +198,5 @@ def process_video(
                 .overwrite_output()
                 .run(quiet=True)
             )
-
-    return output_path
-
-
-def process_veo_video(
-    input_path: Path,
-    output_path: Path | None = None,
-    suffix: str = "_cleaned",
-    progress_callback: Callable[[int, int], None] | None = None,
-) -> Path:
-    """
-    Process video to remove Veo watermark using ffmpeg delogo filter.
-
-    This is much faster than frame-by-frame processing because it uses
-    ffmpeg's native filter chain without extracting individual frames.
-
-    The delogo filter uses spatial interpolation to replace the watermark
-    region with surrounding pixel values.
-
-    Args:
-        input_path: Path to input video
-        output_path: Optional explicit output path
-        suffix: Suffix for auto-generated output filename
-        progress_callback: Optional callback (not used, included for API compatibility)
-
-    Returns:
-        Path to output MP4 file
-    """
-    # Determine output path (always MP4)
-    if output_path is None:
-        output_path = input_path.parent / f"{input_path.stem}{suffix}.mp4"
-
-    # Ensure output has .mp4 extension
-    if output_path.suffix.lower() != ".mp4":
-        output_path = output_path.with_suffix(".mp4")
-
-    # Get video metadata
-    info = get_video_info(input_path)
-    width, height = info["width"], info["height"]
-    has_audio = info["has_audio"]
-
-    # Calculate Veo watermark position
-    veo_pos = calculate_veo_watermark_position(width, height)
-
-    # Calculate bitrate
-    bitrate = calculate_bitrate(width, height)
-
-    # Build delogo filter string
-    # delogo filter: x, y, w, h, show (0=remove, 1=show green rectangle for debugging)
-    delogo_filter = f"delogo=x={veo_pos.x}:y={veo_pos.y}:w={veo_pos.width}:h={veo_pos.height}"
-
-    # Process video with ffmpeg using delogo filter
-    video_input = ffmpeg.input(str(input_path))
-
-    if has_audio:
-        video_stream = video_input.video.filter("delogo",
-                                                 x=veo_pos.x,
-                                                 y=veo_pos.y,
-                                                 w=veo_pos.width,
-                                                 h=veo_pos.height)
-        audio_stream = video_input.audio
-        (
-            ffmpeg.output(
-                video_stream,
-                audio_stream,
-                str(output_path),
-                vcodec="libx264",
-                preset="medium",
-                crf=18,
-                video_bitrate=bitrate,
-                pix_fmt="yuv420p",
-                acodec="aac",
-                audio_bitrate="192k",
-            )
-            .overwrite_output()
-            .run(quiet=True)
-        )
-    else:
-        video_stream = video_input.video.filter("delogo",
-                                                 x=veo_pos.x,
-                                                 y=veo_pos.y,
-                                                 w=veo_pos.width,
-                                                 h=veo_pos.height)
-        (
-            ffmpeg.output(
-                video_stream,
-                str(output_path),
-                vcodec="libx264",
-                preset="medium",
-                crf=18,
-                video_bitrate=bitrate,
-                pix_fmt="yuv420p",
-            )
-            .overwrite_output()
-            .run(quiet=True)
-        )
 
     return output_path

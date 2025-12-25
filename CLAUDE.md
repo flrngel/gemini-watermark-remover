@@ -18,22 +18,20 @@ uv run gemini-watermark-remover process <file>
 
 ## Architecture
 
-Python CLI tool using `uv` for package management. Removes watermarks from Google AI-generated content:
-- **Gemini**: Reverse alpha blending with known alpha maps
-- **Veo**: ffmpeg delogo filter (use `--veo` flag)
+Python CLI tool using `uv` for package management. Removes **all** AI watermarks (Gemini + Veo) from images/videos in a single pass.
 
-### Gemini Algorithm
+### Core Algorithm
+
+For videos, both watermarks are removed together:
+1. Extract frames
+2. Apply Gemini alpha blending reversal to each frame
+3. Reassemble with ffmpeg, applying Veo delogo filter during encoding
 
 ```python
-# Reverse Alpha Blending Formula
+# Gemini: Reverse Alpha Blending
 original = (watermarked - alpha * 255) / (1 - alpha)
-```
 
-### Veo Algorithm
-
-Uses ffmpeg's delogo filter for efficient watermark removal:
-```python
-# Delogo filter parameters
+# Veo: ffmpeg delogo filter
 ffmpeg.filter("delogo", x=pos.x, y=pos.y, w=pos.width, h=pos.height)
 ```
 
@@ -46,9 +44,9 @@ Constants in `src/gemini_watermark_remover/core/__init__.py`:
 
 - **`core/blend.py`** - Vectorized numpy watermark removal (Gemini)
 - **`core/alpha_map.py`** - Loads reference PNGs, extracts alpha as `max(R,G,B)/255`
-- **`core/position.py`** - Calculates watermark position for both Gemini and Veo
+- **`core/position.py`** - Calculates watermark positions for both Gemini and Veo
 - **`processors/image.py`** - Pillow-based single image processing (Gemini only)
-- **`processors/video.py`** - Video processing with `process_video` (Gemini) and `process_veo_video` (Veo)
+- **`processors/video.py`** - Combined Gemini + Veo video processing
 - **`cli.py`** - typer CLI with `process` and `info` commands
 
 ### Gemini Watermark Position
