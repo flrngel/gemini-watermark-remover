@@ -30,6 +30,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let engine = null;
     let videoEngine = null;
     let isVideoMode = false;
+    let currentImageUrls = { original: null, processed: null };
+    let currentVideoUrls = { original: null, processed: null };
 
     // --- Init ---
     try {
@@ -64,6 +66,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         previewSection.classList.add('hidden');
         uploadArea.classList.remove('hidden');
         fileInput.value = '';
+        
+        // Clean up blob URLs
+        if (currentImageUrls.original) URL.revokeObjectURL(currentImageUrls.original);
+        if (currentImageUrls.processed) URL.revokeObjectURL(currentImageUrls.processed);
+        if (currentVideoUrls.original) URL.revokeObjectURL(currentVideoUrls.original);
+        if (currentVideoUrls.processed) URL.revokeObjectURL(currentVideoUrls.processed);
+        
+        // Reset URLs
+        currentImageUrls = { original: null, processed: null };
+        currentVideoUrls = { original: null, processed: null };
+        
+        // Clear media elements
         originalImage.src = '';
         processedImage.src = '';
         if (originalVideo) originalVideo.src = '';
@@ -124,6 +138,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const result = await engine.process(file);
         
+        // Clean up old URLs
+        if (currentImageUrls.processed) URL.revokeObjectURL(currentImageUrls.processed);
+        
         // Hide video elements, show image elements
         isVideoMode = false;
         document.getElementById('originalImageContainer')?.classList.remove('hidden');
@@ -132,9 +149,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('processedVideoContainer')?.classList.add('hidden');
         
         // 1. Update Images
-        originalImage.src = result.originalSrc;
-        const processedUrl = URL.createObjectURL(result.blob);
-        processedImage.src = processedUrl;
+        currentImageUrls.original = result.originalSrc;
+        currentImageUrls.processed = URL.createObjectURL(result.blob);
+        originalImage.src = currentImageUrls.original;
+        processedImage.src = currentImageUrls.processed;
         
         // 2. Update Metadata (Top Right Corner)
         const sizeText = `${result.width} × ${result.height} px`;
@@ -145,7 +163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 3. Setup Download
         downloadBtn.onclick = () => {
             const a = document.createElement('a');
-            a.href = processedUrl;
+            a.href = currentImageUrls.processed;
             a.download = `clean_${file.name.replace(/\.[^/.]+$/, "")}.png`;
             a.click();
         };
@@ -169,6 +187,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const result = await videoEngine.processVideo(file, onProgress);
         
+        // Clean up old URLs
+        if (currentVideoUrls.original) URL.revokeObjectURL(currentVideoUrls.original);
+        if (currentVideoUrls.processed) URL.revokeObjectURL(currentVideoUrls.processed);
+        
         // Hide image elements, show video elements
         isVideoMode = true;
         document.getElementById('originalImageContainer')?.classList.add('hidden');
@@ -177,10 +199,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('processedVideoContainer')?.classList.remove('hidden');
         
         // 1. Update Videos
-        const originalUrl = URL.createObjectURL(file);
-        const processedUrl = URL.createObjectURL(result.blob);
-        originalVideo.src = originalUrl;
-        processedVideo.src = processedUrl;
+        currentVideoUrls.original = URL.createObjectURL(file);
+        currentVideoUrls.processed = URL.createObjectURL(result.blob);
+        originalVideo.src = currentVideoUrls.original;
+        processedVideo.src = currentVideoUrls.processed;
         
         // 2. Update Metadata
         const sizeText = `${result.width} × ${result.height} px`;
@@ -192,7 +214,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 3. Setup Download
         downloadBtn.onclick = () => {
             const a = document.createElement('a');
-            a.href = processedUrl;
+            a.href = currentVideoUrls.processed;
             a.download = `clean_${file.name.replace(/\.[^/.]+$/, "")}.webm`;
             a.click();
         };

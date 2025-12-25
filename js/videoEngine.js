@@ -23,7 +23,7 @@ export class VideoWatermarkEngine {
             ]);
             return new VideoWatermarkEngine(bg48, bg96);
         } catch (e) {
-            console.error("Failed to load assets. Ensure assets/bg_48.png exists.");
+            console.error("Failed to load assets. Ensure assets/bg_48.png and assets/bg_96.png exist.");
             throw e;
         }
     }
@@ -148,6 +148,9 @@ export class VideoWatermarkEngine {
             // Process frames
             video.play();
             
+            // Process each frame as it's drawn to the canvas
+            // requestAnimationFrame is used to sync with browser refresh rate (~60fps)
+            // which prevents excessive CPU usage while maintaining smooth processing
             const processFrame = async () => {
                 if (video.ended || video.paused) {
                     mediaRecorder.stop();
@@ -169,6 +172,8 @@ export class VideoWatermarkEngine {
             };
 
             video.onended = () => {
+                // Give a small buffer to ensure all frames are captured
+                // This prevents race conditions where the recorder stops before the last frame
                 setTimeout(() => {
                     mediaRecorder.stop();
                 }, 100);
