@@ -1,3 +1,4 @@
+import subprocess
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -122,12 +123,14 @@ def process_video(
         frames_dir.mkdir()
 
         # Extract frames using ffmpeg
-        (
+        extract_cmd = (
             ffmpeg.input(str(input_path))
             .output(str(frames_dir / "frame_%06d.png"), format="image2")
             .overwrite_output()
-            .run(quiet=True)
+            .compile()
         )
+        subprocess.run(extract_cmd, stdin=subprocess.DEVNULL,
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
         # Process each frame for Gemini watermark removal
         frame_files = sorted(frames_dir.glob("frame_*.png"))
@@ -168,7 +171,7 @@ def process_video(
         if has_audio:
             # Extract and merge audio from original
             audio_input = ffmpeg.input(str(input_path)).audio
-            (
+            reassemble_cmd = (
                 ffmpeg.output(
                     video_stream,
                     audio_input,
@@ -182,10 +185,10 @@ def process_video(
                     audio_bitrate="192k",
                 )
                 .overwrite_output()
-                .run(quiet=True)
+                .compile()
             )
         else:
-            (
+            reassemble_cmd = (
                 ffmpeg.output(
                     video_stream,
                     str(output_path),
@@ -196,7 +199,10 @@ def process_video(
                     pix_fmt="yuv420p",
                 )
                 .overwrite_output()
-                .run(quiet=True)
+                .compile()
             )
+
+        subprocess.run(reassemble_cmd, stdin=subprocess.DEVNULL,
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
     return output_path
