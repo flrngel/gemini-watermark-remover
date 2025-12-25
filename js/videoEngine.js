@@ -103,97 +103,97 @@ export class VideoWatermarkEngine {
             }
 
             return new Promise((resolve, reject) => {
-            // Create MediaRecorder with fallback codec support
-            let mediaRecorder;
-            const mimeTypes = [
-                'video/webm;codecs=vp9',
-                'video/webm;codecs=vp8',
-                'video/webm'
-            ];
-            
-            let selectedMimeType = 'video/webm';
-            for (const mimeType of mimeTypes) {
-                if (MediaRecorder.isTypeSupported(mimeType)) {
-                    selectedMimeType = mimeType;
-                    break;
-                }
-            }
-            
-            mediaRecorder = new MediaRecorder(stream, {
-                mimeType: selectedMimeType,
-                videoBitsPerSecond: this.DEFAULT_VIDEO_BITRATE
-            });
-
-            const chunks = [];
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) {
-                    chunks.push(e.data);
-                }
-            };
-
-            mediaRecorder.onstop = () => {
-                const blob = new Blob(chunks, { type: 'video/webm' });
-                URL.revokeObjectURL(videoUrl);
-                if (audioContext) {
-                    audioContext.close();
-                }
-                resolve({
-                    blob,
-                    width: video.videoWidth,
-                    height: video.videoHeight,
-                    duration: video.duration
-                });
-            };
-
-            mediaRecorder.onerror = (e) => {
-                URL.revokeObjectURL(videoUrl);
-                if (audioContext) {
-                    audioContext.close();
-                }
-                reject(e);
-            };
-
-            // Start recording
-            mediaRecorder.start();
-
-            // Process frames
-            video.play();
-            
-            // Process each frame as it's drawn to the canvas
-            // Frames are processed at browser refresh rate (~60fps) using requestAnimationFrame
-            // but the MediaRecorder captures and encodes them at the configured RECORDING_FPS
-            const processFrame = async () => {
-                if (video.ended || video.paused) {
-                    // Don't stop here - let onended handler manage the stop with buffer time
-                    return;
-                }
-
-                ctx.drawImage(video, 0, 0);
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                removeWatermark(imageData, alphaMap, config);
-                ctx.putImageData(imageData, 0, 0);
-
-                // Report progress
-                if (onProgress) {
-                    const progress = (video.currentTime / video.duration) * 100;
-                    onProgress(progress);
-                }
-
-                requestAnimationFrame(processFrame);
-            };
-
-            video.onended = () => {
-                // Give a small buffer to ensure all frames are captured
-                // This prevents race conditions where the recorder stops before the last frame
-                setTimeout(() => {
-                    if (mediaRecorder.state !== 'inactive') {
-                        mediaRecorder.stop();
+                // Create MediaRecorder with fallback codec support
+                let mediaRecorder;
+                const mimeTypes = [
+                    'video/webm;codecs=vp9',
+                    'video/webm;codecs=vp8',
+                    'video/webm'
+                ];
+                
+                let selectedMimeType = 'video/webm';
+                for (const mimeType of mimeTypes) {
+                    if (MediaRecorder.isTypeSupported(mimeType)) {
+                        selectedMimeType = mimeType;
+                        break;
                     }
-                }, this.FRAME_CAPTURE_BUFFER_MS);
-            };
+                }
+                
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: selectedMimeType,
+                    videoBitsPerSecond: this.DEFAULT_VIDEO_BITRATE
+                });
 
-            processFrame();
-        });
+                const chunks = [];
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) {
+                        chunks.push(e.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: selectedMimeType });
+                    URL.revokeObjectURL(videoUrl);
+                    if (audioContext) {
+                        audioContext.close();
+                    }
+                    resolve({
+                        blob,
+                        width: video.videoWidth,
+                        height: video.videoHeight,
+                        duration: video.duration
+                    });
+                };
+
+                mediaRecorder.onerror = (e) => {
+                    URL.revokeObjectURL(videoUrl);
+                    if (audioContext) {
+                        audioContext.close();
+                    }
+                    reject(e);
+                };
+
+                // Start recording
+                mediaRecorder.start();
+
+                // Process frames
+                video.play();
+                
+                // Process each frame as it's drawn to the canvas
+                // Frames are processed at browser refresh rate (~60fps) using requestAnimationFrame
+                // but the MediaRecorder captures and encodes them at the configured RECORDING_FPS
+                const processFrame = async () => {
+                    if (video.ended || video.paused) {
+                        // Don't stop here - let onended handler manage the stop with buffer time
+                        return;
+                    }
+
+                    ctx.drawImage(video, 0, 0);
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    removeWatermark(imageData, alphaMap, config);
+                    ctx.putImageData(imageData, 0, 0);
+
+                    // Report progress
+                    if (onProgress) {
+                        const progress = (video.currentTime / video.duration) * 100;
+                        onProgress(progress);
+                    }
+
+                    requestAnimationFrame(processFrame);
+                };
+
+                video.onended = () => {
+                    // Give a small buffer to ensure all frames are captured
+                    // This prevents race conditions where the recorder stops before the last frame
+                    setTimeout(() => {
+                        if (mediaRecorder.state !== 'inactive') {
+                            mediaRecorder.stop();
+                        }
+                    }, this.FRAME_CAPTURE_BUFFER_MS);
+                };
+
+                processFrame();
+            });
         } catch (error) {
             // Clean up resources on error
             URL.revokeObjectURL(videoUrl);
