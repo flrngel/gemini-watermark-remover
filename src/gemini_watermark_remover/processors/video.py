@@ -114,7 +114,7 @@ def remove_veo_watermark(
 def process_video(
     input_path: Path,
     output_path: Path | None = None,
-    suffix: str = "_cleaned",
+    suffix: str = "_output",
     progress_callback: Callable[[int, int], None] | None = None,
 ) -> Path:
     """

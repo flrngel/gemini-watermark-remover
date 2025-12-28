@@ -18,7 +18,7 @@ def is_supported_image(path: Path) -> bool:
 def process_image(
     input_path: Path,
     output_path: Path | None = None,
-    suffix: str = "_cleaned",
+    suffix: str = "_output",
 ) -> Path:
     """
     Process a single image to remove watermark.

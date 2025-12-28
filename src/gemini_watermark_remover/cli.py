@@ -43,7 +43,7 @@ def process(
         None,
         "--output",
         "-o",
-        help="Output path (file or directory). Defaults to input location with '_cleaned' suffix.",
+        help="Output path (file or directory). Defaults to input location with '_output' suffix.",
     ),
     recursive: bool = typer.Option(
         False,
@@ -52,7 +52,7 @@ def process(
         help="Process directories recursively",
     ),
     suffix: str = typer.Option(
-        "_cleaned",
+        "_output",
         "--suffix",
         "-s",
         help="Suffix to add to output filenames",
