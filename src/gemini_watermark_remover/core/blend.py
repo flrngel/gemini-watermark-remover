@@ -5,6 +5,45 @@ from . import ALPHA_THRESHOLD, LOGO_VALUE, MAX_ALPHA
 from .position import WatermarkPosition
 
 
+def detect_gemini_watermark(
+    region: NDArray[np.float32],
+    alpha_map: NDArray[np.float32],
+) -> bool:
+    """
+    Detect if Gemini sparkle watermark is actually present in the region.
+
+    Uses correlation between alpha values and brightness to determine
+    if a white watermark was applied via alpha blending.
+
+    Returns True if watermark is likely present, False otherwise.
+    """
+    region_gray = np.mean(region, axis=2)
+
+    # Check 1: High-alpha pixels should be significantly brighter than low-alpha pixels
+    high_alpha_mask = alpha_map >= 0.1
+    low_alpha_mask = alpha_map < 0.05
+
+    if not (high_alpha_mask.any() and low_alpha_mask.any()):
+        return False
+
+    high_brightness = np.mean(region_gray[high_alpha_mask])
+    low_brightness = np.mean(region_gray[low_alpha_mask])
+    brightness_diff = high_brightness - low_brightness
+
+    # Expected diff: avg_alpha * 255 * 0.7 (at least 70% of theoretical)
+    expected_diff = np.mean(alpha_map[high_alpha_mask]) * LOGO_VALUE * 0.7
+    if brightness_diff < expected_diff:
+        return False
+
+    # Check 2: Very high alpha pixels (>0.5) should be nearly white (>220)
+    very_high_alpha = alpha_map >= 0.5
+    if very_high_alpha.any():
+        if np.mean(region_gray[very_high_alpha]) < 220:
+            return False
+
+    return True
+
+
 def remove_watermark(
     image_array: NDArray[np.uint8],
     alpha_map: NDArray[np.float32],
@@ -42,23 +81,11 @@ def remove_watermark(
     # Clamp alpha to prevent division by near-zero
     alpha = np.clip(alpha, 0, MAX_ALPHA)
 
-    # Check if this region actually has a watermark
-    # If the pixels are too dark where alpha is high, there's no watermark
-    # (applying the formula would produce negative/black values)
+    # Check if watermark is actually present using improved detection
+    if not detect_gemini_watermark(region, alpha):
+        return image_array
+
     alpha_expanded = alpha[:, :, np.newaxis]  # Shape: (h, w, 1)
-
-    # For pixels with significant alpha, check if they're bright enough
-    # to have been watermarked (watermarked pixels should be >= alpha * 255)
-    high_alpha_mask = alpha >= 0.1  # Pixels with noticeable watermark effect
-    if high_alpha_mask.any():
-        # Get average brightness in high-alpha region
-        high_alpha_region = region[high_alpha_mask]
-        expected_min_brightness = np.mean(alpha[high_alpha_mask]) * LOGO_VALUE * 0.5
-        actual_brightness = np.mean(high_alpha_region)
-
-        # If the region is too dark, there's probably no watermark
-        if actual_brightness < expected_min_brightness:
-            return image_array
 
     # Apply reverse alpha blending formula:
     # original = (watermarked - alpha * LOGO_VALUE) / (1 - alpha)

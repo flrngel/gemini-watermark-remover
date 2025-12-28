@@ -6,11 +6,12 @@ from . import (
     LARGE_WATERMARK_SIZE,
     SMALL_MARGIN,
     SMALL_WATERMARK_SIZE,
-    VEO_MIN_HEIGHT,
-    VEO_MIN_WIDTH,
-    VEO_WATERMARK_HEIGHT_RATIO,
-    VEO_WATERMARK_MARGIN_RATIO,
-    VEO_WATERMARK_WIDTH_RATIO,
+    VEO_MARGIN_X_RATIO,
+    VEO_MARGIN_Y_RATIO,
+    VEO_MIN_MARGIN_X,
+    VEO_MIN_MARGIN_Y,
+    VEO_WATERMARK_HEIGHT,
+    VEO_WATERMARK_WIDTH,
 )
 
 
@@ -58,16 +59,24 @@ def calculate_veo_watermark_position(video_width: int, video_height: int) -> Veo
     Calculate Veo watermark position based on video dimensions.
 
     Veo watermark is "Veo" text in bottom-right corner.
-    Size scales with video resolution.
+    Uses fixed dimensions with ratio-based margins.
     """
-    # Calculate dimensions based on video size
-    width = max(VEO_MIN_WIDTH, int(video_width * VEO_WATERMARK_WIDTH_RATIO))
-    height = max(VEO_MIN_HEIGHT, int(video_height * VEO_WATERMARK_HEIGHT_RATIO))
-    margin_x = max(8, int(video_width * VEO_WATERMARK_MARGIN_RATIO))
-    margin_y = max(8, int(video_height * VEO_WATERMARK_MARGIN_RATIO))
+    # Fixed dimensions with safety margin
+    width = VEO_WATERMARK_WIDTH
+    height = VEO_WATERMARK_HEIGHT
+
+    # Ratio-based margins from edges
+    margin_x = max(VEO_MIN_MARGIN_X, int(video_width * VEO_MARGIN_X_RATIO))
+    margin_y = max(VEO_MIN_MARGIN_Y, int(video_height * VEO_MARGIN_Y_RATIO))
 
     # Position in bottom-right corner
-    x = video_width - margin_x - width
-    y = video_height - margin_y - height
+    x = max(0, video_width - margin_x - width)
+    y = max(0, video_height - margin_y - height)
+
+    # Ensure we don't exceed image bounds
+    if x + width > video_width:
+        x = video_width - width
+    if y + height > video_height:
+        y = video_height - height
 
     return VeoWatermarkPosition(x=x, y=y, width=width, height=height)

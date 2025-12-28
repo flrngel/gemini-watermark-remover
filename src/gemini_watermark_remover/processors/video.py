@@ -76,10 +76,10 @@ def remove_veo_watermark(
     veo_pos: VeoWatermarkPosition,
 ) -> np.ndarray:
     """
-    Remove Veo watermark by sampling pixels from above the watermark region.
+    Remove Veo watermark by sampling pixels from above with edge blending.
 
-    This technique copies pixels from just above the watermark area,
-    producing cleaner results than blur-based interpolation.
+    This technique copies pixels from just above the watermark area
+    and uses feathered edge blending for smoother transitions.
 
     Args:
         image_array: Input image as numpy array (H, W, C)
@@ -101,12 +101,25 @@ def remove_veo_watermark(
         return image_array
 
     # Sample region from just above the watermark
-    # Take a strip of the same size from above
-    source_y = y - h
-    source_region = image_array[source_y:source_y + h, x:x + w].copy()
+    source_region = image_array[y - h : y, x : x + w].copy()
 
-    # Copy source region to cover the watermark
-    image_array[y:y + h, x:x + w] = source_region
+    # Create feathered mask for smooth blending at edges
+    mask = np.ones((h, w), dtype=np.float32)
+    feather = min(3, h // 4, w // 4)
+    if feather > 0:
+        for i in range(feather):
+            alpha = (i + 1) / (feather + 1)
+            mask[i, :] *= alpha
+            mask[-(i + 1), :] *= alpha
+            mask[:, i] *= alpha
+            mask[:, -(i + 1)] *= alpha
+
+    # Blend source with original at edges
+    mask_3d = mask[:, :, np.newaxis]
+    original = image_array[y : y + h, x : x + w].astype(np.float32)
+    blended = source_region.astype(np.float32) * mask_3d + original * (1 - mask_3d)
+
+    image_array[y : y + h, x : x + w] = blended.astype(np.uint8)
 
     return image_array
 

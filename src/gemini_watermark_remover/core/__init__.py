@@ -25,9 +25,10 @@ PIXELS_4K: int = 3840 * 2160  # 8,294,400
 
 # Veo watermark settings
 # Veo watermark is "Veo" text in bottom-right corner
-# Size scales with video resolution
-VEO_WATERMARK_WIDTH_RATIO: float = 0.08  # ~8% of video width (increased for full coverage)
-VEO_WATERMARK_HEIGHT_RATIO: float = 0.05  # ~5% of video height (increased)
-VEO_WATERMARK_MARGIN_RATIO: float = 0.008  # ~0.8% margin from corner
-VEO_MIN_WIDTH: int = 80  # Minimum watermark width
-VEO_MIN_HEIGHT: int = 32  # Minimum watermark height
+# Uses fixed dimensions with ratio-based margins (based on actual measurements)
+VEO_WATERMARK_WIDTH: int = 100      # Fixed width with safety margin
+VEO_WATERMARK_HEIGHT: int = 45      # Fixed height with safety margin
+VEO_MARGIN_X_RATIO: float = 0.025   # ~2.5% from right edge
+VEO_MARGIN_Y_RATIO: float = 0.015   # ~1.5% from bottom edge
+VEO_MIN_MARGIN_X: int = 15          # Minimum margin from right
+VEO_MIN_MARGIN_Y: int = 15          # Minimum margin from bottom
