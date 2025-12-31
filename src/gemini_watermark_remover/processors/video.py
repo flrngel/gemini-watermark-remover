@@ -79,8 +79,8 @@ def remove_veo_watermark(
     """
     Remove Veo watermark by sampling pixels from above with edge blending.
 
-    This technique copies pixels from just above the watermark area
-    and uses feathered edge blending for smoother transitions.
+    Skips removal if source region differs significantly from target surroundings
+    to avoid visible rectangle artifacts when dynamic content passes through.
 
     Args:
         image_array: Input image as numpy array (H, W, C)
@@ -104,9 +104,28 @@ def remove_veo_watermark(
     # Sample region from just above the watermark
     source_region = image_array[y - h : y, x : x + w].copy()
 
+    # Check if source would create visible rectangle artifact
+    # Use combined metric: boundary visibility + source/target mismatch
+    if x >= 1:
+        target_region = image_array[y : y + h, x : x + w].astype(np.float32)
+        left_neighbor = image_array[y : y + h, x - 1 : x].astype(np.float32)
+        source_left_edge = source_region[:, 0:1].astype(np.float32)
+
+        # Boundary visibility after copy (left edge discontinuity)
+        left_boundary_diff = abs(source_left_edge.mean() - left_neighbor.mean())
+
+        # Source vs target mismatch (overall brightness difference)
+        src_target_diff = abs(source_region.astype(np.float32).mean() - target_region.mean())
+
+        # Risk score: high boundary OR high mismatch = visible artifact
+        risk_score = max(left_boundary_diff, src_target_diff)
+
+        # Skip if risk is too high (would create visible rectangle)
+        if risk_score > 14:
+            return image_array
+
     # Create feathered mask for smooth blending at edges
-    # Note: Only feather top and left edges since Veo watermark is at bottom-right
-    # Feathering bottom/right would blend the watermark back in
+    # Only feather top and left edges since Veo watermark is at bottom-right
     mask = np.ones((h, w), dtype=np.float32)
     feather = min(3, h // 4, w // 4)
     if feather > 0:
