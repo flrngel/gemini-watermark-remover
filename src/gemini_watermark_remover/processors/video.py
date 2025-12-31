@@ -104,18 +104,6 @@ def remove_veo_watermark(
     # Sample region from just above the watermark
     source_region = image_array[y - h : y, x : x + w].copy()
 
-    # Check if copying would create visible artifacts (mirror rectangle problem)
-    # Compare left edge of source with pixels left of target region
-    if x >= 5:  # Ensure we have pixels to the left
-        left_neighbor = image_array[y : y + h, x - 5 : x].astype(np.float32)
-        source_left_edge = source_region[:, :5].astype(np.float32)
-        h_discontinuity = np.abs(left_neighbor.mean() - source_left_edge.mean())
-
-        # If discontinuity is too high, skip Veo removal to avoid visible rectangle
-        # Threshold of 7 balances artifact prevention vs watermark removal
-        if h_discontinuity > 7:
-            return image_array
-
     # Create feathered mask for smooth blending at edges
     # Note: Only feather top and left edges since Veo watermark is at bottom-right
     # Feathering bottom/right would blend the watermark back in
