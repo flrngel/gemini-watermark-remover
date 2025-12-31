@@ -77,10 +77,10 @@ def remove_veo_watermark(
     veo_pos: VeoWatermarkPosition,
 ) -> np.ndarray:
     """
-    Remove Veo watermark by sampling pixels from above with edge blending.
+    Remove Veo watermark using hybrid approach with OpenCV inpainting.
 
-    Skips removal if source region differs significantly from target surroundings
-    to avoid visible rectangle artifacts when dynamic content passes through.
+    For static/uniform backgrounds: sample from above (cleaner result).
+    For dynamic content: use OpenCV inpainting to fill watermark regions naturally.
 
     Args:
         image_array: Input image as numpy array (H, W, C)
@@ -89,6 +89,9 @@ def remove_veo_watermark(
     Returns:
         Modified image array with Veo watermark removed
     """
+    import cv2
+    from scipy.ndimage import gaussian_filter
+
     x, y = veo_pos.x, veo_pos.y
     w, h = veo_pos.width, veo_pos.height
     img_h, img_w = image_array.shape[:2]
@@ -101,45 +104,74 @@ def remove_veo_watermark(
     if y < h:
         return image_array
 
-    # Sample region from just above the watermark
-    source_region = image_array[y - h : y, x : x + w].copy()
+    # Get regions for comparison
+    target_region = image_array[y : y + h, x : x + w].astype(np.float32)
+    source_region = image_array[y - h : y, x : x + w].astype(np.float32)
 
-    # Check if source would create visible rectangle artifact
-    # Use combined metric: boundary visibility + source/target mismatch
-    if x >= 1:
-        target_region = image_array[y : y + h, x : x + w].astype(np.float32)
-        left_neighbor = image_array[y : y + h, x - 1 : x].astype(np.float32)
-        source_left_edge = source_region[:, 0:1].astype(np.float32)
+    target_gray = np.mean(target_region, axis=2)
+    source_gray = np.mean(source_region, axis=2)
 
-        # Boundary visibility after copy (left edge discontinuity)
-        left_boundary_diff = abs(source_left_edge.mean() - left_neighbor.mean())
+    # Estimate background brightness (lower percentile to ignore watermark)
+    background_level = np.percentile(target_gray, 30)
+    source_mean = source_gray.mean()
 
-        # Source vs target mismatch (overall brightness difference)
-        src_target_diff = abs(source_region.astype(np.float32).mean() - target_region.mean())
+    # Check if source differs significantly from target background
+    dynamic_threshold = max(15, background_level * 0.5)
+    is_dynamic = abs(source_mean - background_level) > dynamic_threshold
 
-        # Risk score: high boundary OR high mismatch = visible artifact
-        risk_score = max(left_boundary_diff, src_target_diff)
+    if is_dynamic:
+        # Dynamic content: use OpenCV inpainting for natural filling
+        brightness_excess = target_gray - background_level
 
-        # Skip if risk is too high (would create visible rectangle)
-        if risk_score > 14:
+        # Create mask of watermark pixels (bright text)
+        watermark_threshold = max(30, background_level * 0.5)
+        watermark_mask = (brightness_excess > watermark_threshold).astype(np.uint8)
+
+        if not watermark_mask.any():
             return image_array
 
-    # Create feathered mask for smooth blending at edges
-    # Only feather top and left edges since Veo watermark is at bottom-right
-    mask = np.ones((h, w), dtype=np.float32)
-    feather = min(3, h // 4, w // 4)
-    if feather > 0:
-        for i in range(feather):
-            alpha = (i + 1) / (feather + 1)
-            mask[i, :] *= alpha  # Top edge only
-            mask[:, i] *= alpha  # Left edge only
+        # Dilate mask slightly for better coverage
+        kernel = np.ones((3, 3), np.uint8)
+        watermark_mask = cv2.dilate(watermark_mask, kernel, iterations=1)
 
-    # Blend source with original at edges
-    mask_3d = mask[:, :, np.newaxis]
-    original = image_array[y : y + h, x : x + w].astype(np.float32)
-    blended = source_region.astype(np.float32) * mask_3d + original * (1 - mask_3d)
+        # Extract the extended region for inpainting (include some context)
+        margin = 10
+        ext_y1 = max(0, y - margin)
+        ext_y2 = min(img_h, y + h + margin)
+        ext_x1 = max(0, x - margin)
+        ext_x2 = min(img_w, x + w + margin)
 
-    image_array[y : y + h, x : x + w] = blended.astype(np.uint8)
+        ext_region = image_array[ext_y1:ext_y2, ext_x1:ext_x2].copy()
+
+        # Create full mask for extended region
+        ext_mask = np.zeros((ext_y2 - ext_y1, ext_x2 - ext_x1), dtype=np.uint8)
+        mask_y_offset = y - ext_y1
+        mask_x_offset = x - ext_x1
+        ext_mask[mask_y_offset:mask_y_offset + h, mask_x_offset:mask_x_offset + w] = watermark_mask
+
+        # Apply Telea inpainting (faster and works well for small regions)
+        inpainted = cv2.inpaint(ext_region, ext_mask, inpaintRadius=3, flags=cv2.INPAINT_TELEA)
+
+        # Extract the inpainted Veo region
+        result = inpainted[mask_y_offset:mask_y_offset + h, mask_x_offset:mask_x_offset + w]
+    else:
+        # Static content: sample from above with edge feathering
+        result = source_region.copy()
+
+        # Only feather top and left edges (bottom/right are at video edge)
+        feather_size = 5
+
+        # Top edge feather
+        for i in range(feather_size):
+            alpha = i / feather_size
+            result[i, :] = (1 - alpha) * target_region[i, :] + alpha * result[i, :]
+
+        # Left edge feather
+        for j in range(feather_size):
+            alpha = j / feather_size
+            result[:, j] = (1 - alpha) * target_region[:, j] + alpha * result[:, j]
+
+    image_array[y : y + h, x : x + w] = np.clip(result, 0, 255).astype(np.uint8)
 
     return image_array
 
