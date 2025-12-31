@@ -30,15 +30,23 @@ def detect_gemini_watermark(
     low_brightness = np.mean(region_gray[low_alpha_mask])
     brightness_diff = high_brightness - low_brightness
 
-    # Expected diff: avg_alpha * 255 * 0.7 (at least 70% of theoretical)
-    expected_diff = np.mean(alpha_map[high_alpha_mask]) * LOGO_VALUE * 0.7
+    # Expected diff: avg_alpha * 255 * 0.5 (at least 50% of theoretical)
+    # Reduced from 0.7 to handle more edge cases
+    avg_high_alpha = np.mean(alpha_map[high_alpha_mask])
+    expected_diff = avg_high_alpha * LOGO_VALUE * 0.5
     if brightness_diff < expected_diff:
         return False
 
-    # Check 2: Very high alpha pixels (>0.5) should be nearly white (>220)
+    # Check 2: Verify brightness at high-alpha areas matches alpha blending formula
+    # Expected: watermarked = original * (1 - alpha) + 255 * alpha
+    # So: expected_brightness ≈ low_brightness * (1 - avg_alpha) + 255 * avg_alpha
     very_high_alpha = alpha_map >= 0.5
     if very_high_alpha.any():
-        if np.mean(region_gray[very_high_alpha]) < 220:
+        avg_very_high_alpha = np.mean(alpha_map[very_high_alpha])
+        expected_brightness = low_brightness * (1 - avg_very_high_alpha) + LOGO_VALUE * avg_very_high_alpha
+        actual_brightness = np.mean(region_gray[very_high_alpha])
+        # Allow 30% tolerance from expected
+        if actual_brightness < expected_brightness * 0.7:
             return False
 
     return True
