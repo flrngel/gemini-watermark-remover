@@ -13,6 +13,7 @@ from ..core.alpha_map import get_alpha_map
 from ..core.blend import remove_watermark
 from ..core.position import calculate_veo_watermark_position, calculate_watermark_position
 from ..core.position import VeoWatermarkPosition
+from ..core.temporal import TemporalProcessor
 
 SUPPORTED_VIDEO_FORMATS = {".mp4", ".webm", ".mov", ".avi", ".mkv"}
 
@@ -191,16 +192,25 @@ def process_video(
         processed_dir = temp_path / "processed"
         processed_dir.mkdir()
 
+        # Initialize temporal processor for consistent watermark removal
+        temporal_processor = TemporalProcessor(gemini_pos, veo_pos)
+
         for i, frame_file in enumerate(frame_files):
             # Load frame
             with Image.open(frame_file) as img:
                 frame_array = np.array(img.convert("RGB"), dtype=np.uint8)
+
+            # Keep original for optical flow computation
+            original_frame = frame_array.copy()
 
             # Remove Gemini watermark (alpha blending)
             result_array = remove_watermark(frame_array, alpha_map, gemini_pos)
 
             # Remove Veo watermark (pixel sampling - no blur)
             result_array = remove_veo_watermark(result_array, veo_pos)
+
+            # Apply temporal consistency to reduce flickering in motion
+            result_array = temporal_processor.process_frame(original_frame, result_array)
 
             # Save processed frame
             result_image = Image.fromarray(result_array)

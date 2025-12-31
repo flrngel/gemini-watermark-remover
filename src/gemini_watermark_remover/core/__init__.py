@@ -32,3 +32,18 @@ VEO_MARGIN_X_RATIO: float = 0.025   # ~2.5% from right edge
 VEO_MARGIN_Y_RATIO: float = 0.015   # ~1.5% from bottom edge
 VEO_MIN_MARGIN_X: int = 15          # Minimum margin from right
 VEO_MIN_MARGIN_Y: int = 15          # Minimum margin from bottom
+
+# Temporal consistency constants (for video processing)
+# Optical flow parameters (Farneback algorithm)
+OPTICAL_FLOW_PYR_SCALE: float = 0.5    # Pyramid scale
+OPTICAL_FLOW_LEVELS: int = 3            # Pyramid levels
+OPTICAL_FLOW_WIN_SIZE: int = 15         # Window size
+OPTICAL_FLOW_ITERATIONS: int = 3        # Iterations at each level
+OPTICAL_FLOW_POLY_N: int = 5            # Pixel neighborhood size
+OPTICAL_FLOW_POLY_SIGMA: float = 1.2    # Gaussian std for derivatives
+
+# Temporal blending parameters
+TEMPORAL_BLEND_ALPHA: float = 0.7       # Weight for current frame (0.7 = 70% current, 30% previous)
+SCENE_CUT_THRESHOLD: float = 30.0       # Max average flow magnitude before scene cut detection
+CHANGE_CLAMP_THRESHOLD: float = 50.0    # Max per-pixel change between frames
+FLOW_MAGNITUDE_THRESHOLD: float = 100.0 # Max flow magnitude before treating as scene cut
