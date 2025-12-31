@@ -105,15 +105,15 @@ def remove_veo_watermark(
     source_region = image_array[y - h : y, x : x + w].copy()
 
     # Create feathered mask for smooth blending at edges
+    # Note: Only feather top and left edges since Veo watermark is at bottom-right
+    # Feathering bottom/right would blend the watermark back in
     mask = np.ones((h, w), dtype=np.float32)
     feather = min(3, h // 4, w // 4)
     if feather > 0:
         for i in range(feather):
             alpha = (i + 1) / (feather + 1)
-            mask[i, :] *= alpha
-            mask[-(i + 1), :] *= alpha
-            mask[:, i] *= alpha
-            mask[:, -(i + 1)] *= alpha
+            mask[i, :] *= alpha  # Top edge only
+            mask[:, i] *= alpha  # Left edge only
 
     # Blend source with original at edges
     mask_3d = mask[:, :, np.newaxis]
