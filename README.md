@@ -38,6 +38,31 @@ gwr process ./media/ -r --suffix "_clean"
 gwr info
 ```
 
+### macOS Finder Quick Action
+
+Right-click files/folders in Finder to remove watermarks:
+
+1. Open **Automator** → **New Document** → **Quick Action**
+2. Set **Workflow receives**: `files or folders` in `Finder`
+3. Add **Run Shell Script** action with **Shell**: `/bin/bash` and **Pass input**: `as arguments`
+4. Paste the script:
+
+```bash
+UV_PATH="$HOME/.local/bin/uv"
+PROJECT_DIR="/path/to/gemini-watermark-remover"  # Update this path
+
+for f in "$@"; do
+    cd "$PROJECT_DIR"
+    "$UV_PATH" run gwr process "$f" -r
+done
+
+osascript -e 'display notification "Watermark removal complete" with title "GWR"'
+```
+
+5. Save as "Remove Watermark"
+
+Now right-click any file/folder → **Quick Actions** → **Remove Watermark**
+
 ### Options
 
 | Option | Description |
