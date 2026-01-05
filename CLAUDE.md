@@ -80,3 +80,22 @@ x, y = video_width - margin - width, video_height - margin - height
 Reference alpha maps bundled in `src/gemini_watermark_remover/assets/`:
 - `bg_48.png` - 48x48 alpha map for small images
 - `bg_96.png` - 96x96 alpha map for large images
+
+### CLI Features
+
+- Supports both files and directories as input
+- `-r` flag for recursive directory processing
+- Outputs `_output` suffix by default (configurable with `-s`)
+
+### macOS Finder Integration
+
+`scripts/remove-watermark.sh` - Shell script for Automator Quick Action integration.
+
+To create a Finder right-click action:
+1. Open Automator → Quick Action
+2. Set "Workflow receives: files or folders in Finder"
+3. Add "Run Shell Script" with shell `/bin/bash` and pass input `as arguments`
+4. Paste script contents (update `PROJECT_DIR` path)
+5. Save as "Remove Watermark"
+
+Debug log location: `/tmp/gwr-debug.log`
